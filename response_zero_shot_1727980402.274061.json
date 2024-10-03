@@ -1,0 +1,111 @@
+{
+  "strategy": "zero_shot",
+  "prompt_prefix": "CREATE TABLE IF NOT EXISTS Clients (\n    client_id INTEGER PRIMARY KEY,\n    client_name VARCHAR(50) NOT NULL,\n    client_contact_email VARCHAR(50) NOT NULL,\n    industry VARCHAR(50),\n    signup_date DATE NOT NULL,\n    status VARCHAR(20) NOT NULL\n);\n\n\nCREATE TABLE IF NOT EXISTS SaaS_Providers (\n    provider_id INTEGER PRIMARY KEY,\n    provider_name VARCHAR(50) NOT NULL,\n    service_type VARCHAR(50) NOT NULL\n);\n\n\nCREATE TABLE IF NOT EXISTS Subscriptions (\n    subscription_id INTEGER PRIMARY KEY,\n    client_id INTEGER NOT NULL,\n    provider_id INTEGER NOT NULL,\n    start_date DATE NOT NULL,\n    end_date DATE,\n    billing_cycle VARCHAR(20) NOT NULL, -- e.g., Monthly, Yearly\n    subscription_cost DECIMAL(10, 2) NOT NULL,\n    subscription_status VARCHAR(20) NOT NULL,\n    FOREIGN KEY (client_id) REFERENCES Clients (client_id),\n    FOREIGN KEY (provider_id) REFERENCES SaaS_Providers (provider_id)\n);\n\nCREATE TABLE IF NOT EXISTS Invoices (\n    invoice_id INTEGER PRIMARY KEY,\n    client_id INTEGER NOT NULL,\n    subscription_id INTEGER NOT NULL,\n    invoice_date DATE NOT NULL,\n    amount_due DECIMAL(10, 2) NOT NULL,\n    due_date DATE NOT NULL,\n    payment_status VARCHAR(20) NOT NULL,\n    FOREIGN KEY (client_id) REFERENCES Clients (client_id),\n    FOREIGN KEY (subscription_id) REFERENCES Subscriptions (subscription_id)\n);\n\nCREATE TABLE IF NOT EXISTS Usage_Logs (\n    usage_id INTEGER PRIMARY KEY,\n    subscription_id INTEGER NOT NULL,\n    usage_date DATE NOT NULL,\n    usage_metric VARCHAR(50) NOT NULL, -- e.g., GB used, minutes, etc.\n    amount_used DECIMAL(10, 2) NOT NULL,\n    FOREIGN KEY (subscription_id) REFERENCES Subscriptions (subscription_id)\n);\n\n\nCREATE TABLE IF NOT EXISTS Payment_Methods (\n    payment_method_id INTEGER PRIMARY KEY,\n    client_id INTEGER NOT NULL,\n    method_type VARCHAR(20) NOT NULL, -- e.g., Credit Card, Bank Transfer\n    provider_name VARCHAR(50), -- Payment provider (e.g., Visa, MasterCard)\n    last_four_digits CHAR(4), -- Last four digits of the card\n    expiration_date DATE,\n    FOREIGN KEY (client_id) REFERENCES Clients (client_id)\n);\n Give me a PostgreSQL select statement that answers the question. Only respond with PostgreSQL syntax. If there is an error do not explain it!",
+  "questionResults": [
+    {
+      "question": "Which clients have the most active subscriptions?",
+      "sql": "\nSELECT c.client_id, c.client_name, COUNT(s.subscription_id) AS active_subscriptions\nFROM Clients c\nJOIN Subscriptions s ON c.client_id = s.client_id\nWHERE s.subscription_status = 'Active'\nGROUP BY c.client_id, c.client_name\nORDER BY active_subscriptions DESC;\n",
+      "queryRawResponse": "[(1, 'Acme Corp', 2), (4, 'Delta Enterprises', 1)]",
+      "friendlyResponse": "The clients with the most active subscriptions are Acme Corp with 2 subscriptions and Delta Enterprises with 1 subscription.",
+      "error": "None"
+    },
+    {
+      "question": "Which SaaS providers are most popular across all clients?",
+      "sql": "\nSELECT sp.provider_name, COUNT(s.subscription_id) AS subscription_count\nFROM SaaS_Providers sp\nJOIN Subscriptions s ON sp.provider_id = s.provider_id\nGROUP BY sp.provider_name\nORDER BY subscription_count DESC;\n",
+      "queryRawResponse": "[('Microsoft 365', 1), ('Zoom', 1), ('Salesforce', 1), ('Slack', 1), ('AWS', 1)]",
+      "friendlyResponse": "The most popular SaaS providers are Microsoft 365, Zoom, Salesforce, Slack, and AWS!",
+      "error": "None"
+    },
+    {
+      "question": "What are the total subscription costs for each client?",
+      "sql": "\nSELECT \n    c.client_id,\n    c.client_name,\n    SUM(s.subscription_cost) AS total_subscription_cost\nFROM \n    Clients c\nJOIN \n    Subscriptions s ON c.client_id = s.client_id\nGROUP BY \n    c.client_id, c.client_name;\n",
+      "queryRawResponse": "[(3, 'Gamma Technologies', Decimal('30.00')), (4, 'Delta Enterprises', Decimal('12.00')), (2, 'Beta LLC', Decimal('12000.00')), (1, 'Acme Corp', Decimal('3500.00'))]",
+      "friendlyResponse": "Here are the total subscription costs for each client:\n\n- Gamma Technologies: $30.00\n- Delta Enterprises: $12.00\n- Beta LLC: $12,000.00\n- Acme Corp: $3,500.00",
+      "error": "None"
+    },
+    {
+      "question": "Which clients are currently overdue on payments?",
+      "sql": "\nSELECT DISTINCT c.client_id, c.client_name, i.invoice_id, i.amount_due, i.due_date\nFROM Clients c\nJOIN Invoices i ON c.client_id = i.client_id\nWHERE i.payment_status != 'Paid' AND i.due_date < CURRENT_DATE;\n",
+      "queryRawResponse": "[(2, 'Beta LLC', 3, Decimal('12000.00'), datetime.date(2021, 7, 30))]",
+      "friendlyResponse": "Currently, Beta LLC is overdue with a payment of $12,000, which was due on July 30, 2021.",
+      "error": "None"
+    },
+    {
+      "question": "What are the top 3 most subscribed-to SaaS providers?",
+      "sql": "\nSELECT provider_id, COUNT(*) AS subscription_count\nFROM Subscriptions\nGROUP BY provider_id\nORDER BY subscription_count DESC\nLIMIT 3;\n",
+      "queryRawResponse": "[(3, 1), (5, 1), (4, 1)]",
+      "friendlyResponse": "The top 3 most subscribed-to SaaS providers are Zoom, Microsoft 365, and Salesforce.",
+      "error": "None"
+    },
+    {
+      "question": "Which subscriptions are set to expire within the next 30 days?",
+      "sql": "\nSELECT *\nFROM Subscriptions\nWHERE end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days';\n",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "It looks like there are no subscriptions set to expire within the next 30 days!",
+      "error": "None"
+    },
+    {
+      "question": "Which clients have multiple payment methods?",
+      "sql": "\nSELECT client_id, COUNT(payment_method_id) AS payment_method_count\nFROM Payment_Methods\nGROUP BY client_id\nHAVING COUNT(payment_method_id) > 1;\n",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "It looks like there are no clients with multiple payment methods.",
+      "error": "None"
+    },
+    {
+      "question": "How many active subscriptions does each client have?",
+      "sql": "\nSELECT \n    c.client_id,\n    c.client_name,\n    COUNT(s.subscription_id) AS active_subscriptions\nFROM \n    Clients c\nLEFT JOIN \n    Subscriptions s ON c.client_id = s.client_id\nWHERE \n    s.subscription_status = 'Active' OR s.subscription_status IS NULL\nGROUP BY \n    c.client_id, c.client_name;\n",
+      "queryRawResponse": "[(1, 'Acme Corp', 2), (4, 'Delta Enterprises', 1)]",
+      "friendlyResponse": "Sure! Here are the active subscriptions for each client: \n\n- Acme Corp: 2 subscriptions\n- Delta Enterprises: 1 subscription",
+      "error": "None"
+    },
+    {
+      "question": "What is the average subscription cost per SaaS provider?",
+      "sql": "\nSELECT \n    sp.provider_name, \n    AVG(s.subscription_cost) AS average_subscription_cost\nFROM \n    SaaS_Providers sp\nJOIN \n    Subscriptions s ON sp.provider_id = s.provider_id\nGROUP BY \n    sp.provider_name;\n",
+      "queryRawResponse": "[('Microsoft 365', Decimal('30.0000000000000000')), ('Zoom', Decimal('1500.0000000000000000')), ('Salesforce', Decimal('2000.0000000000000000')), ('Slack', Decimal('12.0000000000000000')), ('AWS', Decimal('12000.0000000000000000'))]",
+      "friendlyResponse": "The average subscription costs for some popular SaaS providers are as follows: Microsoft 365 - $30, Zoom - $1,500, Salesforce - $2,000, Slack - $12, and AWS - $12,000.",
+      "error": "None"
+    },
+    {
+      "question": "Which clients have never had an unpaid invoice?",
+      "sql": "\nSELECT c.client_id, c.client_name\nFROM Clients c\nWHERE NOT EXISTS (\n    SELECT 1\n    FROM Invoices i\n    WHERE i.client_id = c.client_id AND i.payment_status = 'Unpaid'\n);\n",
+      "queryRawResponse": "[(4, 'Delta Enterprises'), (1, 'Acme Corp'), (3, 'Gamma Technologies')]",
+      "friendlyResponse": "The clients with no unpaid invoices are Delta Enterprises, Acme Corp, and Gamma Technologies.",
+      "error": "None"
+    },
+    {
+      "question": "Which clients have the highest total usage on their subscriptions?",
+      "sql": "\nSELECT c.client_id, c.client_name, SUM(u.amount_used) AS total_usage\nFROM Clients c\nJOIN Subscriptions s ON c.client_id = s.client_id\nJOIN Usage_Logs u ON s.subscription_id = u.subscription_id\nGROUP BY c.client_id, c.client_name\nORDER BY total_usage DESC;\n",
+      "queryRawResponse": "[(1, 'Acme Corp', Decimal('10500.00')), (4, 'Delta Enterprises', Decimal('3500.00')), (3, 'Gamma Technologies', Decimal('2000.00')), (2, 'Beta LLC', Decimal('500.00'))]",
+      "friendlyResponse": "The clients with the highest total usage on their subscriptions are:\n\n1. Acme Corp: $10,500.00\n2. Delta Enterprises: $3,500.00\n3. Gamma Technologies: $2,000.00\n4. Beta LLC: $500.00",
+      "error": "None"
+    },
+    {
+      "question": "Which clients have canceled subscriptions in the past year?",
+      "sql": "\nSELECT DISTINCT c.client_id, c.client_name, c.client_contact_email\nFROM Clients c\nJOIN Subscriptions s ON c.client_id = s.client_id\nWHERE s.subscription_status = 'Canceled'\nAND s.end_date >= CURRENT_DATE - INTERVAL '1 year';\n",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "It looks like no clients have canceled their subscriptions in the past year!",
+      "error": "None"
+    },
+    {
+      "question": "What is the total revenue generated from subscriptions per month?",
+      "sql": "\nSELECT \n    DATE_TRUNC('month', s.start_date) AS month,\n    SUM(s.subscription_cost) AS total_revenue\nFROM \n    Subscriptions s\nWHERE \n    s.subscription_status = 'Active'\nGROUP BY \n    month\nORDER BY \n    month;\n",
+      "queryRawResponse": "[(datetime.datetime(2022, 2, 1, 0, 0, tzinfo=datetime.timezone.utc), Decimal('1500.00')), (datetime.datetime(2022, 3, 1, 0, 0, tzinfo=datetime.timezone.utc), Decimal('2000.00')), (datetime.datetime(2022, 6, 1, 0, 0, tzinfo=datetime.timezone.utc), Decimal('12.00'))]",
+      "friendlyResponse": "The total revenue from subscriptions per month is as follows:  \n- February 2022: $1,500.00  \n- March 2022: $2,000.00  \n- June 2022: $12.00  ",
+      "error": "None"
+    },
+    {
+      "question": "What are the total subscription costs for clients in the 'Technology' industry?",
+      "sql": "\nSELECT SUM(subscription_cost) AS total_subscription_cost\nFROM Subscriptions s\nJOIN Clients c ON s.client_id = c.client_id\nWHERE c.industry = 'Technology';\n",
+      "queryRawResponse": "[(Decimal('30.00'),)]",
+      "friendlyResponse": "The total subscription cost for clients in the 'Technology' industry is $30.00.",
+      "error": "None"
+    },
+    {
+      "question": "Which clients are subscribed to multiple communication services (e.g., Zoom, Slack)?",
+      "sql": "\nSELECT c.client_id, c.client_name\nFROM Clients c\nJOIN Subscriptions s ON c.client_id = s.client_id\nJOIN SaaS_Providers p ON s.provider_id = p.provider_id\nWHERE p.service_type IN ('Zoom', 'Slack')\nGROUP BY c.client_id, c.client_name\nHAVING COUNT(s.subscription_id) > 1;\n",
+      "queryRawResponse": "[]",
+      "friendlyResponse": "It looks like there are currently no clients subscribed to multiple communication services.",
+      "error": "None"
+    }
+  ]
+}
